@@ -1,16 +1,16 @@
-name:                hpffp-ch-monad-transformers
+name:                hpffp-ch26-monad-transformers
 version:             0.1.0.0
 -- synopsis:
 -- description:
-homepage:            https://github.com/githubuser/hpffp-ch-monad-transformers#readme
+homepage:            https://github.com/jo-taro/hpffp-ch26-monad-transformers#readme
 license:             BSD3
 license-file:        LICENSE
-author:              Author name here
-maintainer:          example@example.com
-copyright:           2017 Author name here
+author:              jo-taro
+maintainer:          jo-taro@github.com
+copyright:           2017 jo-taro
 category:            Web
 build-type:          Simple
-cabal-version:       >=1.10
+cabal-version:       >=1.24.0
 extra-source-files:  README.md
 
 executable hit-counter
