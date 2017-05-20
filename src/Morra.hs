@@ -15,6 +15,10 @@ chooseParity = do
     0 -> Even
     1 -> Odd
 
+choosePositiveNumber :: IO Int
+choosePositiveNumber = do
+  randomRIO (0, maxBound)
+
 main :: IO ()
 main = do
   parity <- chooseParity
