@@ -43,10 +43,10 @@ chooseParity = do
   return $ case choose::Int of
     0 -> Config
             (M.fromList $ [(Even, Computer), (Odd, Human)])
-            ("Computer is Even, Humand  is Odd")
+            ("Computer is Even, Human is Odd")
     1 -> Config
             (M.fromList $ [(Odd, Computer), (Even, Human)])
-            ("Computer is Odd, Humand  is Even")
+            ("Computer is Odd, Human is Even")
 
 chooseZereOne :: IO Int
 chooseZereOne = do
@@ -55,10 +55,16 @@ chooseZereOne = do
 singleRoundMorra :: ReaderT Config IO RoundResult
 singleRoundMorra = do
   parityMap     <- asks asParityMap
+
+  humanNumer    <- lift $ putStr "Man : " >> getLine >>= return . read
   computerNumer <- lift chooseZereOne
-  humanNumer    <- lift $ getLine >>= return . read
-  let winner' = M.lookup (determinParity computerNumer humanNumer) parityMap
-  return $ RoundResult computerNumer humanNumer (fromMaybe Nobody winner')
+  lift $ putStrLn ("Com : " ++ show computerNumer)
+
+  let currentParity = determinParity computerNumer humanNumer
+      winner' = (fromMaybe Nobody) $ M.lookup currentParity parityMap
+
+  lift $ putStrLn (" - " ++ show winner' ++ " wins")
+  return $ RoundResult computerNumer humanNumer winner'
 
 determinParity :: Int -> Int -> Parity
 determinParity x y = if (x + y) `mod` 2 == 0 then Even else Odd
@@ -74,7 +80,8 @@ loop = do
   (com, man) <- lift $ get
   currentResult <- lift.lift $ runReaderT singleRoundMorra config
 
-  lift . lift $ print currentResult
+  -- lift . lift $ print currentResult
+  lift . lift $ putStrLn " "
 
   let currentComputerScore = com + score currentResult Computer
   let currentHumanScore    = man + score currentResult Human
@@ -99,9 +106,22 @@ calcWinner history
 main :: IO ()
 main = do
   config  <- chooseParity
-  print . asString $ config
+
+  putStrLn " "
+  putStrLn $ "========= Configuration ========="
+  putStrLn " "
+  putStrLn $ " " ++ asString config
+  putStrLn " "
+  putStrLn $ "================================="
+  putStrLn " "
 
   history <- evalStateT (whileM (checkState) (runReaderT loop config)) (0,0)
   -- forM_ history print
   let finalWinner = calcWinner history
-  print $ "The Winner is : " ++ show finalWinner
+
+  putStrLn " "
+  putStrLn $ "========== The Winner! =========="
+  putStrLn " "
+  putStrLn $ "            " ++  show finalWinner
+  putStrLn " "
+  putStrLn $ "================================="
