@@ -29,14 +29,14 @@ chooseParity = do
     0 -> Even
     1 -> Odd
 
-choosePositiveNumber :: IO Int
-choosePositiveNumber = do
-  randomRIO (0, maxBound)
+chooseZereOne :: IO Int
+chooseZereOne = do
+  randomRIO (0, 1)
 
 singleRoundMorra :: ReaderT Config IO RoundResult
 singleRoundMorra = do
   computer'     <- asks computer
-  computerNumer <- lift choosePositiveNumber
+  computerNumer <- lift chooseZereOne
   humanNumer    <- lift $ getLine >>= return . read
   let winner' = if determinParity computerNumer humanNumer == computer'
                   then Computer
