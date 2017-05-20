@@ -6,12 +6,10 @@ import Control.Monad.Trans.Reader
 import Control.Monad.Trans.State
 import Control.Monad.Trans.Class
 import Control.Monad.Loops
-import Control.Monad
-import Control.Arrow ((***))
 import System.Random
+import System.IO
 
 import qualified Data.Map as M
-import qualified Data.List as L
 import Data.Maybe (fromMaybe)
 
 data PlayerParity = PlayerParity
@@ -105,6 +103,9 @@ calcWinner history
 
 main :: IO ()
 main = do
+
+  hSetBuffering stdout NoBuffering
+
   config  <- chooseParity
 
   putStrLn " "
