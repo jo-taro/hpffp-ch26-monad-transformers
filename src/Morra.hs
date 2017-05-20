@@ -7,14 +7,29 @@ import Control.Monad.Trans.State
 import Control.Monad.Trans.Class
 import Control.Monad.Loops
 import Control.Monad
+import Control.Arrow ((***))
 import System.Random
 
+import qualified Data.Map as M
+import qualified Data.List as L
+import Data.Maybe (fromMaybe)
 
-data Config = Config { computer :: Parity }
+data PlayerParity = PlayerParity
+                      { parity :: Parity
+                      , player :: Player
+                      } deriving (Eq)
 
-data Parity = Even | Odd deriving (Eq,Show)
+instance Show PlayerParity where
+  show p =  (show. player) p ++  " is " ++ (show. parity)  p
 
-data Player = Computer | Human | Nobody deriving (Eq,Show)
+data Config = Config
+                { asParityMap :: M.Map Parity Player
+                , asString :: String
+                }
+
+data Parity = Even | Odd deriving (Ord, Eq,Show)
+
+data Player = Computer | Human | Nobody deriving (Eq, Ord, Show)
 
 data RoundResult = RoundResult
                     { copmuter :: Int
@@ -22,12 +37,16 @@ data RoundResult = RoundResult
                     , winner   :: Player
                     } deriving (Show)
 
-chooseParity :: IO Parity
+chooseParity :: IO Config
 chooseParity = do
   choose <- randomRIO (0,1)
   return $ case choose::Int of
-    0 -> Even
-    1 -> Odd
+    0 -> Config
+            (M.fromList $ [(Even, Computer), (Odd, Human)])
+            ("Computer is Even, Humand  is Odd")
+    1 -> Config
+            (M.fromList $ [(Odd, Computer), (Even, Human)])
+            ("Computer is Odd, Humand  is Even")
 
 chooseZereOne :: IO Int
 chooseZereOne = do
@@ -35,13 +54,11 @@ chooseZereOne = do
 
 singleRoundMorra :: ReaderT Config IO RoundResult
 singleRoundMorra = do
-  computer'     <- asks computer
+  parityMap     <- asks asParityMap
   computerNumer <- lift chooseZereOne
   humanNumer    <- lift $ getLine >>= return . read
-  let winner' = if determinParity computerNumer humanNumer == computer'
-                  then Computer
-                  else Human
-  return $ RoundResult computerNumer humanNumer winner'
+  let winner' = M.lookup (determinParity computerNumer humanNumer) parityMap
+  return $ RoundResult computerNumer humanNumer (fromMaybe Nobody winner')
 
 determinParity :: Int -> Int -> Parity
 determinParity x y = if (x + y) `mod` 2 == 0 then Even else Odd
@@ -51,17 +68,17 @@ score r p
   | winner r == p = 1
   | otherwise     = 0
 
-loop :: Parity -> StateT (Int, Int) IO RoundResult
-loop parity = do
+loop :: ReaderT Config (StateT (Int, Int) IO) RoundResult
+loop = do
+  config <- ask
+  (com, man) <- lift $ get
+  currentResult <- lift.lift $ runReaderT singleRoundMorra config
 
-  (com, man) <- get
-  currentResult <- lift $ runReaderT singleRoundMorra (Config parity)
-
-  lift $ print currentResult
+  lift . lift $ print currentResult
 
   let currentComputerScore = com + score currentResult Computer
   let currentHumanScore    = man + score currentResult Human
-  put (currentComputerScore, currentHumanScore)
+  lift $ put (currentComputerScore, currentHumanScore)
 
   return $ currentResult
 
@@ -81,8 +98,10 @@ calcWinner history
 
 main :: IO ()
 main = do
-  parity  <- chooseParity
-  history <- evalStateT (whileM (checkState) (loop parity)) (0,0)
+  config  <- chooseParity
+  print . asString $ config
+
+  history <- evalStateT (whileM (checkState) (runReaderT loop config)) (0,0)
   -- forM_ history print
   let finalWinner = calcWinner history
   print $ "The Winner is : " ++ show finalWinner
