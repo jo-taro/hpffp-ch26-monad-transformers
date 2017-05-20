@@ -45,7 +45,23 @@ singleRoundMorra = do
 determinParity :: Int -> Int -> Parity
 determinParity x y = if (x + y) `mod` 2 == 0 then Even else Odd
 
+score :: RoundResult -> Player -> Int
+score r p
+  | winner r == p = 1
+  | otherwise     = 0
+
+loop :: Parity -> (Int, Int) -> IO Player
+loop parity (com, man) = do
+  currentResult <- runReaderT singleRoundMorra (Config parity)
+  print currentResult
+  let currentComputerScore = com + score currentResult Computer
+  let currentHumanScore    = man + score currentResult Human
+  if currentHumanScore == 3 || currentComputerScore == 3
+    then return $ winner currentResult
+    else loop parity (currentComputerScore , currentHumanScore)
+
 main :: IO ()
 main = do
   parity <- chooseParity
-  print $ show parity
+  finalWinner <- loop parity (0, 0)
+  print $ show finalWinner
