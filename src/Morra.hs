@@ -64,4 +64,4 @@ main :: IO ()
 main = do
   parity <- chooseParity
   finalWinner <- loop parity (0, 0)
-  print $ show finalWinner
+  print $ "The Winner is : " ++ show finalWinner
