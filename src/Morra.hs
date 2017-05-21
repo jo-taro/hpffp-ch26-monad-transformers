@@ -75,10 +75,10 @@ computerChoice computerParity = do
       lastTwo  = human <$> take 2 history
   case M.lookup (lastTwo !! 1, lastTwo !! 0) trigrams of
     Just p  ->  do
-                  lift $ putStrLn "Choosing from Trigram"
+                  lift $ putStrLn "( Com : choosing from Trigram... )"
                   return $ computerParityDecision computerParity p
     Nothing ->  do
-                  lift $ putStrLn "Choosing from Random"
+                  lift $ putStrLn "( Com : choosing from Random... )"
                   lift $ chooseZeroOne
     where
       computerParityDecision com man
