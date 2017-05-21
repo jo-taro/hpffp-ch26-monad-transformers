@@ -72,34 +72,32 @@ score r p
   | winner r == p = 1
   | otherwise     = 0
 
-loop :: ReaderT Config (StateT (Int, Int) IO) RoundResult
+loop :: ReaderT Config (StateT [RoundResult] IO) RoundResult
 loop = do
-  config <- ask
-  (com, man) <- lift $ get
-  currentResult <- lift.lift $ runReaderT singleRoundMorra config
-
-  -- lift . lift $ print currentResult
-  lift . lift $ putStrLn " "
-
-  let currentComputerScore = com + score currentResult Computer
-  let currentHumanScore    = man + score currentResult Human
-  lift $ put (currentComputerScore, currentHumanScore)
-
+  config          <- ask
+  previousHistory <- lift $ get
+  currentResult   <- lift.lift $ runReaderT singleRoundMorra config
+  -- lift . lift     $ print currentResult
+  lift . lift     $ putStrLn " "
+  lift            $ put (currentResult : previousHistory)
   return $ currentResult
 
 
-checkState :: (Monad m, Eq s, Num s) => StateT (s,s) m Bool
+checkState :: (Monad m) => StateT [RoundResult] m Bool
 checkState = do
-  (com, man) <- get
-  return $ com /= 3 && man /= 3
+  currentHistory <- get
+  let computerScore = calcScoreForPlayer Computer currentHistory
+      humanScore    = calcScoreForPlayer Computer currentHistory
+  return $ computerScore /= 3 && humanScore /= 3
 
 calcWinner :: [RoundResult] -> Player
 calcWinner history
-  | calcWinner' Computer history > calcWinner' Human history  = Computer
-  | calcWinner' Computer history < calcWinner' Human history  = Human
+  | calcScoreForPlayer Computer history > calcScoreForPlayer Human history  = Computer
+  | calcScoreForPlayer Computer history < calcScoreForPlayer Human history  = Human
   | otherwise = Nobody
-  where
-    calcWinner' p ps = length $ filter (((==) p ) . winner) ps
+
+calcScoreForPlayer :: Player -> [RoundResult] -> Int
+calcScoreForPlayer p ps = length $ filter (((==) p ) . winner) ps
 
 main :: IO ()
 main = do
@@ -116,7 +114,7 @@ main = do
   putStrLn $ "================================="
   putStrLn " "
 
-  history <- evalStateT (whileM (checkState) (runReaderT loop config)) (0,0)
+  history <- evalStateT (whileM (checkState) (runReaderT loop config)) []
   -- forM_ history print
   let finalWinner = calcWinner history
 
