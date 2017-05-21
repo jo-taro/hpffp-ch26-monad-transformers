@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Main where
 
@@ -32,8 +33,8 @@ data Parity = Even | Odd deriving (Ord, Eq,Show)
 data Player = Computer | Human | Nobody deriving (Eq, Ord, Show)
 
 data RoundResult = RoundResult
-                    { copmuter :: Int
-                    , human    :: Int
+                    { copmuter :: Parity
+                    , human    :: Parity
                     , winner   :: Player
                     } deriving (Show)
 
@@ -56,21 +57,26 @@ chooseParity = do
             Odd
             ("Computer is Odd, Human is Even")
 
-chooseZeroOne :: IO Int
+chooseZeroOne :: IO Parity
 chooseZeroOne = do
-  randomRIO (0, 1)
+  r <- randomRIO (0, 1) :: IO Int
+  return $ if r `mod` 2 == 0 then Even else Odd
 
+humanChoice :: IO Parity
+humanChoice = do
+  i  <- getLine >>= return . (read :: String -> Int)
+  return $ if i `mod` 2 == 0 then Even else Odd
 
-chooseComputerNumber :: Parity -> StateT StateType IO Int
-chooseComputerNumber computerParity = do
+computerChoice :: Parity -> StateT StateType IO Parity
+computerChoice computerParity = do
   mystate <- get
   let trigrams = snd mystate
       history  = fst mystate
-      lastTwo  = toParity.human <$> take 2 history
+      lastTwo  = human <$> take 2 history
   case M.lookup (lastTwo !! 1, lastTwo !! 0) trigrams of
     Just p  ->  do
                   lift $ putStrLn "Choosing from Trigram"
-                  return.toInt $ computerParityDecision computerParity p
+                  return $ computerParityDecision computerParity p
     Nothing ->  do
                   lift $ putStrLn "Choosing from Random"
                   lift $ chooseZeroOne
@@ -83,22 +89,25 @@ chooseComputerNumber computerParity = do
 
 
 
-singleRoundMorra :: Int -> ReaderT Config IO RoundResult
-singleRoundMorra computerNumber= do
+singleRoundMorra :: Parity -> ReaderT Config IO RoundResult
+singleRoundMorra computerParity = do
   parityMap     <- asks asParityMap
 
-  humanNumer    <- lift $ putStr "Man : " >> getLine >>= return . read
+  humanParity    <- lift $ putStr "Man : " >> humanChoice
   -- computerNumer <- lift chooseZeroOne
-  lift $ putStrLn ("Com : " ++ show computerNumber)
+  lift $ putStrLn ("Com : " ++ show computerParity)
 
-  let currentParity = determinParity computerNumber humanNumer
+  let currentParity = determinParity computerParity humanParity
       winner' = (fromMaybe Nobody) $ M.lookup currentParity parityMap
 
   lift $ putStrLn (" - " ++ show winner' ++ " wins")
-  return $ RoundResult computerNumber humanNumer winner'
+  return $ RoundResult computerParity humanParity winner'
 
-determinParity :: Int -> Int -> Parity
-determinParity x y = if (x + y) `mod` 2 == 0 then Even else Odd
+determinParity :: Parity -> Parity -> Parity
+determinParity x y
+  | x == Odd && y == Even = Odd
+  | x == Odd && y == Odd  = Even
+  | otherwise = y
 
 score :: RoundResult -> Player -> Int
 score r p
@@ -106,11 +115,11 @@ score r p
   | otherwise     = 0
 
 
-toParity :: Int -> Parity
-toParity i = if i `mod` 2 == 0 then Even else Odd
+-- toParity :: Int -> Parity
+-- toParity i = if i `mod` 2 == 0 then Even else Odd
 
-toInt :: Parity -> Int
-toInt p = if p == Even then 0 else 1
+-- toInt :: Parity -> Int
+-- toInt p = if p == Even then 0 else 1
 
 loop :: ReaderT Config (StateT StateType IO) RoundResult
 loop = do
@@ -119,13 +128,13 @@ loop = do
   let history  = fst mystate
       trigrams = snd mystate
 
-  computerNumber <- lift $ chooseComputerNumber (asComputerParity config)
+  computerNumber <- lift $ computerChoice (asComputerParity config)
   roundResult  <- lift.lift $ runReaderT (singleRoundMorra computerNumber) config
   -- lift . lift     $ print roundResult
   lift . lift     $ putStrLn " "
 
   let newHistory = roundResult : history
-      lastThree = toParity . human <$> take 3 newHistory
+      lastThree = human <$> take 3 newHistory
       first  = (lastThree !! 2)
       second = (lastThree !! 1)
       third  = (lastThree !! 0)
