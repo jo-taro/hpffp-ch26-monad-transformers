@@ -6,6 +6,7 @@ import Control.Monad.Trans.Reader
 import Control.Monad.Trans.State
 import Control.Monad.Trans.Class
 import Control.Monad.Loops
+import Control.Monad
 import System.Random
 import System.IO
 
@@ -34,6 +35,8 @@ data RoundResult = RoundResult
                     , human    :: Int
                     , winner   :: Player
                     } deriving (Show)
+
+type Trigram = ((Parity, Parity), Parity)
 
 chooseParity :: IO Config
 chooseParity = do
@@ -72,22 +75,40 @@ score r p
   | winner r == p = 1
   | otherwise     = 0
 
-loop :: ReaderT Config (StateT [RoundResult] IO) RoundResult
+
+toParity :: Int -> Parity
+toParity i = if i `mod` 2 == 0 then Even else Odd
+
+loop :: ReaderT Config (StateT ([RoundResult],[Trigram]) IO) RoundResult
 loop = do
-  config          <- ask
-  previousHistory <- lift $ get
-  currentResult   <- lift.lift $ runReaderT singleRoundMorra config
-  -- lift . lift     $ print currentResult
+  config  <- ask
+  mystate <- lift $ get
+  let history  = fst mystate
+      trigrams = snd mystate
+
+  roundResult  <- lift.lift $ runReaderT singleRoundMorra config
+  -- lift . lift     $ print roundResult
   lift . lift     $ putStrLn " "
-  lift            $ put (currentResult : previousHistory)
-  return $ currentResult
+
+  let newHistory = roundResult : history
+      lastThree = toParity . human <$> takeR 3 newHistory
+      first  = (lastThree !! 0)
+      second = (lastThree !! 1)
+      third  = (lastThree !! 2)
+      newTrigram = ((first, second), third)
+
+  lift $ if length history >= 2
+    then put (newHistory, newTrigram : trigrams)
+    else put (newHistory, trigrams)
+  return $ roundResult
 
 
-checkState :: (Monad m) => StateT [RoundResult] m Bool
+checkState :: (Monad m) => StateT ([RoundResult],[Trigram]) m Bool
 checkState = do
-  currentHistory <- get
-  let computerScore = calcScoreForPlayer Computer currentHistory
-      humanScore    = calcScoreForPlayer Computer currentHistory
+  mystate <- get
+  let history  = fst mystate
+      computerScore = calcScoreForPlayer Computer history
+      humanScore    = calcScoreForPlayer Human history
   return $ computerScore /= 3 && humanScore /= 3
 
 calcWinner :: [RoundResult] -> Player
@@ -98,6 +119,9 @@ calcWinner history
 
 calcScoreForPlayer :: Player -> [RoundResult] -> Int
 calcScoreForPlayer p ps = length $ filter (((==) p ) . winner) ps
+
+takeR :: Int -> [a] -> [a]
+takeR = join . (foldr (const(.tail)) id.) . drop
 
 main :: IO ()
 main = do
@@ -114,7 +138,7 @@ main = do
   putStrLn $ "================================="
   putStrLn " "
 
-  history <- evalStateT (whileM (checkState) (runReaderT loop config)) []
+  history <- evalStateT (whileM (checkState) (runReaderT loop config)) ([],[])
   -- forM_ history print
   let finalWinner = calcWinner history
 
