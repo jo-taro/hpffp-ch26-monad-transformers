@@ -23,6 +23,7 @@ instance Show PlayerParity where
 
 data Config = Config
                 { asParityMap :: M.Map Parity Player
+                , asComputerParity :: Parity
                 , asString :: String
                 }
 
@@ -36,7 +37,11 @@ data RoundResult = RoundResult
                     , winner   :: Player
                     } deriving (Show)
 
-type Trigram = ((Parity, Parity), Parity)
+type TrigramKey = (Parity, Parity)
+type TrigramVal = Parity
+
+type StateType  = ([RoundResult], M.Map TrigramKey TrigramVal)
+
 
 chooseParity :: IO Config
 chooseParity = do
@@ -44,28 +49,53 @@ chooseParity = do
   return $ case choose::Int of
     0 -> Config
             (M.fromList $ [(Even, Computer), (Odd, Human)])
+            Even
             ("Computer is Even, Human is Odd")
     1 -> Config
             (M.fromList $ [(Odd, Computer), (Even, Human)])
+            Odd
             ("Computer is Odd, Human is Even")
 
-chooseZereOne :: IO Int
-chooseZereOne = do
+chooseZeroOne :: IO Int
+chooseZeroOne = do
   randomRIO (0, 1)
 
-singleRoundMorra :: ReaderT Config IO RoundResult
-singleRoundMorra = do
+
+chooseComputerNumber :: Parity -> StateT StateType IO Int
+chooseComputerNumber computerParity = do
+  mystate <- get
+  let trigrams = snd mystate
+      history  = fst mystate
+      lastTwo  = toParity.human <$> take 2 history
+  case M.lookup (lastTwo !! 1, lastTwo !! 0) trigrams of
+    Just p  ->  do
+                  lift $ putStrLn "Choosing from Trigram"
+                  return.toInt $ computerParityDecision computerParity p
+    Nothing ->  do
+                  lift $ putStrLn "Choosing from Random"
+                  lift $ chooseZeroOne
+    where
+      computerParityDecision com man
+        | com == Even && man == Even = Even
+        | com == Even && man == Odd  = Odd
+        | com == Odd  && man == Even = Odd
+        | otherwise = Even -- com == Odd && man == Odd
+
+
+
+singleRoundMorra :: Int -> ReaderT Config IO RoundResult
+singleRoundMorra computerNumber= do
   parityMap     <- asks asParityMap
 
   humanNumer    <- lift $ putStr "Man : " >> getLine >>= return . read
-  computerNumer <- lift chooseZereOne
-  lift $ putStrLn ("Com : " ++ show computerNumer)
+  -- computerNumer <- lift chooseZeroOne
+  lift $ putStrLn ("Com : " ++ show computerNumber)
 
-  let currentParity = determinParity computerNumer humanNumer
+  let currentParity = determinParity computerNumber humanNumer
       winner' = (fromMaybe Nobody) $ M.lookup currentParity parityMap
 
   lift $ putStrLn (" - " ++ show winner' ++ " wins")
-  return $ RoundResult computerNumer humanNumer winner'
+  return $ RoundResult computerNumber humanNumer winner'
 
 determinParity :: Int -> Int -> Parity
 determinParity x y = if (x + y) `mod` 2 == 0 then Even else Odd
@@ -79,31 +109,34 @@ score r p
 toParity :: Int -> Parity
 toParity i = if i `mod` 2 == 0 then Even else Odd
 
-loop :: ReaderT Config (StateT ([RoundResult],[Trigram]) IO) RoundResult
+toInt :: Parity -> Int
+toInt p = if p == Even then 0 else 1
+
+loop :: ReaderT Config (StateT StateType IO) RoundResult
 loop = do
   config  <- ask
   mystate <- lift $ get
   let history  = fst mystate
       trigrams = snd mystate
 
-  roundResult  <- lift.lift $ runReaderT singleRoundMorra config
+  computerNumber <- lift $ chooseComputerNumber (asComputerParity config)
+  roundResult  <- lift.lift $ runReaderT (singleRoundMorra computerNumber) config
   -- lift . lift     $ print roundResult
   lift . lift     $ putStrLn " "
 
   let newHistory = roundResult : history
-      lastThree = toParity . human <$> takeR 3 newHistory
-      first  = (lastThree !! 0)
+      lastThree = toParity . human <$> take 3 newHistory
+      first  = (lastThree !! 2)
       second = (lastThree !! 1)
-      third  = (lastThree !! 2)
-      newTrigram = ((first, second), third)
+      third  = (lastThree !! 0)
 
-  lift $ if length history >= 2
-    then put (newHistory, newTrigram : trigrams)
+  lift $ if length newHistory >= 3
+    then put (newHistory, M.insert (first,second) third trigrams)
     else put (newHistory, trigrams)
   return $ roundResult
 
 
-checkState :: (Monad m) => StateT ([RoundResult],[Trigram]) m Bool
+checkState :: (Monad m) => StateT StateType m Bool
 checkState = do
   mystate <- get
   let history  = fst mystate
@@ -138,7 +171,7 @@ main = do
   putStrLn $ "================================="
   putStrLn " "
 
-  history <- evalStateT (whileM (checkState) (runReaderT loop config)) ([],[])
+  history <- evalStateT (whileM (checkState) (runReaderT loop config)) ([], M.empty)
   -- forM_ history print
   let finalWinner = calcWinner history
 
