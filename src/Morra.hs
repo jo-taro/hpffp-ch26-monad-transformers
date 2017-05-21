@@ -114,13 +114,6 @@ score r p
   | winner r == p = 1
   | otherwise     = 0
 
-
--- toParity :: Int -> Parity
--- toParity i = if i `mod` 2 == 0 then Even else Odd
-
--- toInt :: Parity -> Int
--- toInt p = if p == Even then 0 else 1
-
 loop :: ReaderT Config (StateT StateType IO) RoundResult
 loop = do
   config  <- ask
