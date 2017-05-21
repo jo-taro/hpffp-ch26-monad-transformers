@@ -82,10 +82,9 @@ computerChoice computerParity = do
                   lift $ chooseZeroOne
     where
       computerParityDecision com man
-        | com == Even && man == Even = Even
-        | com == Even && man == Odd  = Odd
-        | com == Odd  && man == Even = Odd
-        | otherwise = Even -- com == Odd && man == Odd
+        | com == Odd && man == Even = Odd
+        | com == Odd && man == Odd = Even
+        | otherwise = man
 
 
 
